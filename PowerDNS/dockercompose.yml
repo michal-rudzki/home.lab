@@ -1,0 +1,77 @@
+services:
+  # Serwer rekursywny do forwardowania i cache'owania
+  pdns-recursor:
+    image: powerdns/pdns-recursor:latest
+    container_name: pdns-recursor
+    restart: always
+    networks:
+      dns_network:
+        - ${RDNS_FORWARD}
+    environment:
+      - recursor_forward_zones=.:${FORWARD_ZONE}
+      - recursor_forward_zones+=${LOCAL_DOMAIN}=pdns-authoritative
+      - recursor_cache_ttl=3600
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    env_file:
+      - ".env"
+
+  # Serwer autorytatywny dla lokalnej domeny
+  pdns-authoritative:
+    image: psitrax/powerdns-sqlite3:latest
+    container_name: pdns-authoritative
+    restart: always
+    networks:
+      dns_network:
+        - ${PDNS_LOCAL}
+    environment:
+      - PDNS_WEBSERVER=yes
+      - PDNS_WEBSERVER_ADDRESS=0.0.0.0
+      - PDNS_WEBSERVER_PORT=8081
+      - PDNS_API_KEY=${API_KEY}
+      - PDNS_LAUNCH=gsqlite3
+      - PDNS_GSQLITE3_DATABASE=/data/pdns.sqlite3
+    volumes:
+      - ./pdns-data:/data 
+    depends_on:
+      - pdns-recursor
+    env_file:
+      - ".env"
+
+  # Interfejs webowy do zarządzania domeną
+  pdns-admin:
+    image: secit/powerdns-admin:latest
+    container_name: pdns-admin
+    restart: always
+    networks:
+      dns_network:
+        - ${PDNS_WEB}
+    environment:
+      - SQLALCHEMY_DATABASE_URI=sqlite:////data/pdns-admin.db
+      - PDNS_API_URL=http://pdns-authoritative:8081
+      - PDNS_API_KEY=${API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+    ports:
+      - "80:80"
+    volumes:
+      - ./pdns-admin-data:/data
+    depends_on:
+      - pdns-authoritative
+    env_file:
+      - ".env"
+
+  # Kontener do automatycznego tworzenia strefy DNS
+  bootstrap:
+    image: alpine/curl
+    container_name: bootstrap
+    volumes:
+      - ./create_zone.sh:/create_zone.sh
+    command: sh -c "/create_zone.sh"
+    depends_on:
+      pdns-authoritative:
+        condition: service_healthy
+      pdns-admin:
+        condition: service_healthy
+    networks:
+      - default
