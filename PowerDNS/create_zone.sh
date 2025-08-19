@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Waiting for PowerDNS container start
-echo "Czekam na uruchomienie PowerDNS Authoritative i PowerDNS Admin..."
+echo "Waiting for start PowerDNS (master/slave) and PowerDNS Admin"
 sleep 20
 
 # variable for zone creation

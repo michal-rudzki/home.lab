@@ -93,7 +93,9 @@ services:
       - ./create_zone.sh:/create_zone.sh
     command: sh -c "/create_zone.sh"
     depends_on:
-      pdns-authoritative:
+      pdns-master:
+        condition: service_healthy
+      pdns-slave:
         condition: service_healthy
       pdns-admin:
         condition: service_healthy
