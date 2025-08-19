@@ -1,5 +1,51 @@
 services:
-  # Serwer rekursywny do forwardowania i cache'owania
+
+  # 1. Server auuthorative as Master (First)
+  pdns-master:
+    image: psitrax/powerdns-sqlite3:latest
+    container_name: pdns-master
+    restart: always
+    networks:
+      dns_network:
+        - ${PDNS_MASTER}
+    environment:
+      - PDNS_WEBSERVER=yes
+      - PDNS_WEBSERVER_ADDRESS=0.0.0.0
+      - PDNS_WEBSERVER_PORT=8081
+      - PDNS_API_KEY=${API_KEY}
+      - PDNS_LAUNCH=gsqlite3
+      - PDNS_GSQLITE3_DATABASE=/data/pdns.sqlite3
+    volumes:
+      - ./pdns-data:/data 
+    depends_on:
+      - pdns-recursor
+    env_file:
+      - ".env"
+
+  # 2. Server auuthorative as Slave (Secondary)
+  pdns-slave:
+    image: psitrax/powerdns-sqlite3:latest
+    container_name: pdns-slave
+    restart: always
+    networks:
+      dns_network:
+        - ${PDNS_SLAVE}
+    environment:
+      - PDNS_WEBSERVER=yes
+      - PDNS_WEBSERVER_ADDRESS=0.0.0.0
+      - PDNS_WEBSERVER_PORT=8081
+      - PDNS_API_KEY=${API_KEY}
+      - PDNS_LAUNCH=gsqlite3
+      - PDNS_GSQLITE3_DATABASE=/data/pdns.sqlite3
+      - PDNS_SLAVE=yes
+    volumes:
+      - ./pdns-data:/data 
+    depends_on:
+      - pdns-recursor
+    env_file:
+      - ".env"
+
+  # 3. Server recursive/forvarder (Cache)
   pdns-recursor:
     image: powerdns/pdns-recursor:latest
     container_name: pdns-recursor
@@ -16,30 +62,8 @@ services:
       - "53:53/tcp"
     env_file:
       - ".env"
-
-  # Serwer autorytatywny dla lokalnej domeny
-  pdns-authoritative:
-    image: psitrax/powerdns-sqlite3:latest
-    container_name: pdns-authoritative
-    restart: always
-    networks:
-      dns_network:
-        - ${PDNS_LOCAL}
-    environment:
-      - PDNS_WEBSERVER=yes
-      - PDNS_WEBSERVER_ADDRESS=0.0.0.0
-      - PDNS_WEBSERVER_PORT=8081
-      - PDNS_API_KEY=${API_KEY}
-      - PDNS_LAUNCH=gsqlite3
-      - PDNS_GSQLITE3_DATABASE=/data/pdns.sqlite3
-    volumes:
-      - ./pdns-data:/data 
-    depends_on:
-      - pdns-recursor
-    env_file:
-      - ".env"
-
-  # Interfejs webowy do zarządzania domeną
+  
+  # Web interface for PowerDNS
   pdns-admin:
     image: secit/powerdns-admin:latest
     container_name: pdns-admin
@@ -61,7 +85,7 @@ services:
     env_file:
       - ".env"
 
-  # Kontener do automatycznego tworzenia strefy DNS
+  # Bootstrab container for initial configuration dns1.in.mailx.com.pl and dns2.in.mailx.com.pl also admin.in.mailx.com.pl
   bootstrap:
     image: alpine/curl
     container_name: bootstrap
