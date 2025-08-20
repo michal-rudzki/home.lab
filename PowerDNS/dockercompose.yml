@@ -6,8 +6,8 @@ services:
     container_name: pdns-master
     restart: always
     networks:
-      dns_network:
-        - ${PDNS_MASTER}
+      LAN:
+        ipv4_address: ${PDNS_MASTER}
     environment:
       - PDNS_WEBSERVER=yes
       - PDNS_WEBSERVER_ADDRESS=0.0.0.0
@@ -16,7 +16,7 @@ services:
       - PDNS_LAUNCH=gsqlite3
       - PDNS_GSQLITE3_DATABASE=/data/pdns.sqlite3
     volumes:
-      - ./pdns-data:/data 
+      - pdns-data-master:/data 
     depends_on:
       - pdns-recursor
     env_file:
@@ -28,8 +28,8 @@ services:
     container_name: pdns-slave
     restart: always
     networks:
-      dns_network:
-        - ${PDNS_SLAVE}
+      LAN:
+        ipv4_address: ${PDNS_SLAVE}
     environment:
       - PDNS_WEBSERVER=yes
       - PDNS_WEBSERVER_ADDRESS=0.0.0.0
@@ -39,7 +39,7 @@ services:
       - PDNS_GSQLITE3_DATABASE=/data/pdns.sqlite3
       - PDNS_SLAVE=yes
     volumes:
-      - ./pdns-data:/data 
+      - pdns-data-slave:/data 
     depends_on:
       - pdns-recursor
     env_file:
@@ -51,8 +51,8 @@ services:
     container_name: pdns-recursor
     restart: always
     networks:
-      dns_network:
-        - ${RDNS_FORWARD}
+      LAN:
+        ipv4_address: ${RDNS_FORWARD}
     environment:
       - recursor_forward_zones=.:${FORWARD_ZONE}
       - recursor_forward_zones+=${LOCAL_DOMAIN}=pdns-authoritative
@@ -60,6 +60,8 @@ services:
     ports:
       - "53:53/udp"
       - "53:53/tcp"
+    volumes:
+      - pdns-recursor-cache:/data
     env_file:
       - ".env"
   
@@ -69,8 +71,8 @@ services:
     container_name: pdns-admin
     restart: always
     networks:
-      dns_network:
-        - ${PDNS_WEB}
+      LAN:
+        ipv4_address: ${PDNS_WEB}
     environment:
       - SQLALCHEMY_DATABASE_URI=sqlite:////data/pdns-admin.db
       - PDNS_API_URL=http://pdns-authoritative:8081
@@ -100,4 +102,15 @@ services:
       pdns-admin:
         condition: service_healthy
     networks:
-      - default
+      LAN:
+        ipv4_address: ${PDNS_BOOTSTRAP_IP}
+
+networks:
+  LAN:
+    external: true
+
+volumes:
+  pdns-data-master:
+  pdns-data-slave:
+  pdns-admin-data:
+  pdns-recursor-cache:
