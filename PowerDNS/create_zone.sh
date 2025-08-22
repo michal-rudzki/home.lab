@@ -7,7 +7,7 @@ sleep 20
 # variable for zone creation
 ZONE_NAME="in.mailx.com.pl"
 PDNS_API_URL="http://pdns-authoritative:8081"
-PDNS_API_KEY=`cat .env | grep SECRET_KEY | awk -f "=" '{print $2}' | tr -d "'"`
+PDNS_API_KEY=`cat .env | grep SECRET_KEY | tr -d "=" | tr -d "SECRET_KEY" | tr -d "'"`
 
 declare -A RECORDS
 RECORDS+=(
