@@ -8,15 +8,9 @@ services:
     networks:
       LAN:
         ipv4_address: ${PDNS_MASTER}
-    environment:
-      - PDNS_WEBSERVER=yes
-      - PDNS_WEBSERVER_ADDRESS=0.0.0.0
-      - PDNS_WEBSERVER_PORT=8081
-      - PDNS_API_KEY=${API_KEY}
-      - PDNS_LAUNCH=gsqlite3
-      - PDNS_GSQLITE3_DATABASE=/data/pdns.sqlite3
     volumes:
-      - pdns-data-master:/data 
+      - pdns-data-master:/var/lib/powerdns
+      - /pdns.comf/pdns-master.conf:/etc/powerdns/pdns.conf:ro
     depends_on:
       - pdns-recursor
     env_file:
@@ -30,16 +24,9 @@ services:
     networks:
       LAN:
         ipv4_address: ${PDNS_SLAVE}
-    environment:
-      - PDNS_WEBSERVER=yes
-      - PDNS_WEBSERVER_ADDRESS=0.0.0.0
-      - PDNS_WEBSERVER_PORT=8081
-      - PDNS_API_KEY=${API_KEY}
-      - PDNS_LAUNCH=gsqlite3
-      - PDNS_GSQLITE3_DATABASE=/data/pdns.sqlite3
-      - PDNS_SLAVE=yes
     volumes:
-      - pdns-data-slave:/data 
+      - pdns-data-slave:/var/lib/powerdns
+      - /pdns.comf/pdns-slave.conf:/etc/powerdns/pdns.conf:ro
     depends_on:
       - pdns-recursor
     env_file:
