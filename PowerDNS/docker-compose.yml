@@ -2,99 +2,77 @@ services:
 
   # 1. Server auuthorative as Master (First)
   pdns-master:
-    image: powerdns/pdns-auth-50:5.0.0
+    image: psitrax/powerdns-sqlite3:latest
     container_name: pdns-master
     restart: always
     networks:
       LAN:
         ipv4_address: ${PDNS_MASTER}
-    ports:
-      - "53:53/udp"
-      - "53:53/tcp"
-    env_file:
-      - ".env"
-    environment:
-      - PDNS_WEBSERVER=yes
-      - PDNS_WEBSERVER_ADDRESS=0.0.0.0
-      - PDNS_WEBSERVER_PORT=8081
-      - PDNS_API_KEY=${API_KEY}
-      - PDNS_AUTH_DATABASE_TYPE=sqlite3
-      - PDNS_AUTH_DATABASE_FILE=/var/lib/powerdns/pdns.sqlite3
-      - PDNS_AUTH_ALSO_NOTIFY=pdns-slave
-      - PDNS_AUTH_ALLOW_AXFR_IPS=pdns-slave
-      - PDNS_MASTER=yes
     volumes:
-      - pdns-data-master:${PDNS_PATH_SQL}
+      - pdns-data-master:/var/lib/powerdns
+      - /pdns.comf/pdns-master.conf:/etc/powerdns/pdns.conf:ro
     depends_on:
       - pdns-recursor
+    env_file:
+      - ".env"
 
   # 2. Server auuthorative as Slave (Secondary)
   pdns-slave:
-    image: powerdns/pdns-auth-50:5.0.0
+    image: psitrax/powerdns-sqlite3:latest
     container_name: pdns-slave
     restart: always
     networks:
       LAN:
         ipv4_address: ${PDNS_SLAVE}
-    ports:
-      - "53:53/udp"
-      - "53:53/tcp"
+    volumes:
+      - pdns-data-slave:/var/lib/powerdns
+      - /pdns.comf/pdns-slave.conf:/etc/powerdns/pdns.conf:ro
+    depends_on:
+      - pdns-recursor
     env_file:
       - ".env"
-    environment:
-      - PDNS_WEBSERVER=yes
-      - PDNS_WEBSERVER_ADDRESS=0.0.0.0
-      - PDNS_WEBSERVER_PORT=8081
-      - PDNS_API_KEY=${API_KEY}
-      - PDNS_LAUNCH=gsqlite3
-      - PDNS_SLAVE=yes
-    volumes:
-      - pdns-data-slave:${PDNS_PATH_SQL}
-    depends_on:
-      - pdns-master
 
   # 3. Server recursive/forvarder (Cache)
   pdns-recursor:
-    image: powerdns/pdns-recursor-53:latest
+    image: powerdns/pdns-recursor:latest
     container_name: pdns-recursor
     restart: always
     networks:
       LAN:
-        ipv4_address: ${PDNS_FORWARD}
-    env_file:
-      - ".env"
+        ipv4_address: ${RDNS_FORWARD}
     environment:
       - recursor_forward_zones=.:${FORWARD_ZONE}
-      - recursor_forward_zones+=${LOCAL_DOMAIN}=pdns-master
+      - recursor_forward_zones+=${LOCAL_DOMAIN}=pdns-authoritative
       - recursor_cache_ttl=3600
     ports:
       - "53:53/udp"
       - "53:53/tcp"
     volumes:
       - pdns-recursor-cache:/data
+    env_file:
+      - ".env"
   
   # Web interface for PowerDNS
   pdns-admin:
-    image: powerdnsadmin/pda-legacy:latest
+    image: secit/powerdns-admin:latest
     container_name: pdns-admin
     restart: always
     networks:
       LAN:
         ipv4_address: ${PDNS_WEB}
-    env_file:
-      - ".env"
     environment:
       - SQLALCHEMY_DATABASE_URI=sqlite:////data/pdns-admin.db
-      - PDNS_API_URL=http://pdns-master:8081
+      - PDNS_API_URL=http://pdns-authoritative:8081
       - PDNS_API_KEY=${API_KEY}
       - SECRET_KEY=${SECRET_KEY}
     ports:
       - "80:80"
     volumes:
-      - pdns-admin-data:/data
+      - ./pdns-admin-data:/data
     depends_on:
-      - pdns-master
-      - pdns-slave
+      - pdns-authoritative
+    env_file:
+      - ".env"
 
   # Bootstrab container for initial configuration dns1.in.mailx.com.pl and dns2.in.mailx.com.pl also admin.in.mailx.com.pl
   bootstrap:
@@ -102,8 +80,14 @@ services:
     container_name: bootstrap
     volumes:
       - ./create_zone.sh:/create_zone.sh
-      - ./.env:/.env
     command: sh -c "/create_zone.sh"
+    depends_on:
+      pdns-master:
+        condition: service_healthy
+      pdns-slave:
+        condition: service_healthy
+      pdns-admin:
+        condition: service_healthy
     networks:
       LAN:
         ipv4_address: ${PDNS_BOOTSTRAP_IP}
